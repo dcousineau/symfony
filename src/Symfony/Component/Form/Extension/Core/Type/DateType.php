@@ -137,6 +137,7 @@ class DateType extends AbstractType
         }
 
         $builder
+            ->setAttribute('pattern', $options['pattern'])
             ->setAttribute('formatter', $formatter)
             ->setAttribute('widget', $options['widget']);
     }
@@ -147,20 +148,21 @@ class DateType extends AbstractType
     public function buildViewBottomUp(FormView $view, FormInterface $form)
     {
         $view->set('widget', $form->getAttribute('widget'));
-
+        
         if ($view->hasChildren()) {
-            $pattern = $form->getAttribute('formatter')->getPattern();
-
-            // set right order with respect to locale (e.g.: de_DE=dd.MM.yy; en_US=M/d/yy)
-            // lookup various formats at http://userguide.icu-project.org/formatparse/datetime
-            if (preg_match('/^([yMd]+).+([yMd]+).+([yMd]+)$/', $pattern)) {
-                $pattern = preg_replace(array('/y+/', '/M+/', '/d+/'), array('{{ year }}', '{{ month }}', '{{ day }}'), $pattern);
+            $pattern = $form->getAttribute('pattern');
+            $format = $form->getAttribute('formatter')->getPattern();
+        
+            if ($pattern) {
+                //always let through an overridden pattern
+                $view->set('date_pattern', $pattern);
+            } else if (preg_match('/^[yMd\W]+$/', $format)) { 
+                //only let through patterns that include y, M, d, and/or any non-word characters
+                //e.g. the default format of `LLL, dd yyyy` and any others with characters we don't understand will fail the regex
+                $view->set('date_pattern', preg_replace(array('/y+/', '/M+/', '/d+/'), array('{{ year }}', '{{ month }}', '{{ day }}'), $format));
             } else {
-                // default fallback
-                $pattern = '{{ year }}-{{ month }}-{{ day }}';
+                $view->set('date_pattern', '{{ year }}-{{ month }}-{{ day }}');
             }
-
-            $view->set('date_pattern', $pattern);
         }
     }
 
@@ -176,6 +178,7 @@ class DateType extends AbstractType
             'widget'         => 'choice',
             'input'          => 'datetime',
             'format'         => \IntlDateFormatter::MEDIUM,
+            'pattern'        => null,
             'data_timezone'  => null,
             'user_timezone'  => null,
             'empty_value'    => null,
